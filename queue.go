@@ -10,31 +10,31 @@ import (
 )
 
 type (
-	Queue[Result any, ProcessArg any] struct {
+	Queue[ResultType any, TaskArg any] struct {
 		pool *ants.PoolWithFunc
 
 		lastId atomic.Int64
 
-		processFunc func(taskId int64, arg ProcessArg) (Result, error)
+		processFunc func(taskId int64, arg TaskArg) (ResultType, error)
 	}
 
-	TaskResult[Result any] struct {
-		TaskID int64
-		Result Result
+	TaskResult[ResultType, TaskArg any] struct {
+		Task   *Task[ResultType, TaskArg]
+		Result ResultType
 		Error  error
 	}
 )
 
-func MakeQueue[Result any, ProcessArg any](
+func MakeQueue[ResultType any, TaskArg any](
 	workersCnt int,
-	processFunc func(taskId int64, arg ProcessArg) (Result, error),
+	processFunc func(taskId int64, arg TaskArg) (ResultType, error),
 	antsOptions ...ants.Option,
-) (*Queue[Result, ProcessArg], error) {
+) (*Queue[ResultType, TaskArg], error) {
 	if processFunc == nil {
 		return nil, errors.New("processFunc is nil")
 	}
 
-	queue := &Queue[Result, ProcessArg]{
+	queue := &Queue[ResultType, TaskArg]{
 		processFunc: processFunc,
 	}
 
@@ -48,19 +48,19 @@ func MakeQueue[Result any, ProcessArg any](
 	return queue, nil
 }
 
-func (q *Queue[Result, ProcessArg]) GetFreeWorkersCount() int {
+func (q *Queue[ResultType, TaskArg]) GetFreeWorkersCount() int {
 	return q.pool.Free()
 }
 
-func (q *Queue[Result, ProcessArg]) GetNumTasksBlocked() int {
+func (q *Queue[ResultType, TaskArg]) GetNumTasksBlocked() int {
 	return q.pool.Waiting()
 }
 
-func (q *Queue[Result, ProcessArg]) GetWorkersCount() int {
+func (q *Queue[ResultType, TaskArg]) GetWorkersCount() int {
 	return q.pool.Cap()
 }
 
-func (q *Queue[Result, ProcessArg]) SetWorkersCount(workers int) {
+func (q *Queue[ResultType, TaskArg]) SetWorkersCount(workers int) {
 	if workers < 0 {
 		workers = 1
 	}
@@ -68,29 +68,29 @@ func (q *Queue[Result, ProcessArg]) SetWorkersCount(workers int) {
 	q.pool.Tune(workers)
 }
 
-func (q *Queue[Result, ProcessArg]) Stop() {
+func (q *Queue[ResultType, TaskArg]) Stop() {
 	q.pool.Release()
 }
 
-func (q *Queue[Result, ProcessArg]) StopGraceful(timeout time.Duration) error {
+func (q *Queue[ResultType, TaskArg]) StopGraceful(timeout time.Duration) error {
 	return q.pool.ReleaseTimeout(timeout)
 }
 
 // Enqueue single task
-func (q *Queue[Result, ProcessArg]) Enqueue(arg ProcessArg) (*Task[Result, ProcessArg], error) {
+func (q *Queue[ResultType, TaskArg]) Enqueue(arg TaskArg) (*Task[ResultType, TaskArg], error) {
 	return q.enqueueTask(arg, nil)
 }
 
-func (q *Queue[Result, ProcessArg]) enqueueTask(
-	arg ProcessArg,
-	grp *TaskGroup[Result, ProcessArg],
-) (*Task[Result, ProcessArg], error) {
-	task := Task[Result, ProcessArg]{
+func (q *Queue[ResultType, TaskArg]) enqueueTask(
+	arg TaskArg,
+	grp *TaskGroup[ResultType, TaskArg],
+) (*Task[ResultType, TaskArg], error) {
+	task := Task[ResultType, TaskArg]{
 		id:         q.lastId.Add(1),
 		arg:        arg,
 		grp:        grp,
 		doneChan:   make(chan struct{}),
-		resultChan: make(chan *TaskResult[Result], 1),
+		resultChan: make(chan *TaskResult[ResultType, TaskArg], 1),
 	}
 
 	if err := q.pool.Invoke(&task); err != nil {
@@ -101,10 +101,10 @@ func (q *Queue[Result, ProcessArg]) enqueueTask(
 }
 
 // EnqueueGroup of tasks
-func (q *Queue[Result, ProcessArg]) EnqueueGroup(args ...ProcessArg) (*TaskGroup[Result, ProcessArg], error) {
-	grp := TaskGroup[Result, ProcessArg]{
-		tasks:       make([]*Task[Result, ProcessArg], 0, len(args)),
-		resultsChan: make(chan *TaskResult[Result], len(args)),
+func (q *Queue[ResultType, TaskArg]) EnqueueGroup(args ...TaskArg) (*TaskGroup[ResultType, TaskArg], error) {
+	grp := TaskGroup[ResultType, TaskArg]{
+		tasks:       make([]*Task[ResultType, TaskArg], 0, len(args)),
+		resultsChan: make(chan *TaskResult[ResultType, TaskArg], len(args)),
 		doneChan:    make(chan struct{}),
 	}
 
@@ -125,13 +125,13 @@ func (q *Queue[Result, ProcessArg]) EnqueueGroup(args ...ProcessArg) (*TaskGroup
 	return &grp, nil
 }
 
-func (q *Queue[Result, ProcessArg]) process(arg any) {
-	task := arg.(*Task[Result, ProcessArg])
+func (q *Queue[ResultType, TaskArg]) process(arg any) {
+	task := arg.(*Task[ResultType, TaskArg])
 
 	res, err := q.processFunc(task.id, task.arg)
 
-	result := TaskResult[Result]{
-		TaskID: task.id,
+	result := TaskResult[ResultType, TaskArg]{
+		Task:   task,
 		Result: res,
 		Error:  err,
 	}

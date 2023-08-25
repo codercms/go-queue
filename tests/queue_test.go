@@ -14,12 +14,12 @@ import (
 )
 
 func TestQueue_Enqueue(t *testing.T) {
-	queue, err := queue.MakeQueue(1, func(taskId int64, arg int) (int, error) {
+	_queue, err := queue.MakeQueue(1, func(taskId int64, arg int) (int, error) {
 		return arg + arg, nil
 	})
 	assert.NoError(t, err)
 
-	task, err := queue.Enqueue(2)
+	task, err := _queue.Enqueue(2)
 	assert.NoError(t, err)
 
 	select {
@@ -33,12 +33,12 @@ func TestQueue_Enqueue(t *testing.T) {
 }
 
 func TestQueue_EnqueueWait(t *testing.T) {
-	queue, err := queue.MakeQueue(1, func(taskId int64, arg int) (int, error) {
+	_queue, err := queue.MakeQueue(1, func(taskId int64, arg int) (int, error) {
 		return arg + arg, nil
 	})
 	assert.NoError(t, err)
 
-	task, err := queue.Enqueue(2)
+	task, err := _queue.Enqueue(2)
 	assert.NoError(t, err)
 
 	select {
@@ -73,7 +73,7 @@ func TestQueue_EnqueueGroup(t *testing.T) {
 
 	assert.Len(t, grp.GetTasks(), len(args))
 
-	results := make([]*queue.TaskResult[int], 0, len(args))
+	results := make([]*queue.TaskResult[int, int], 0, len(args))
 
 	timeoutCh := time.After(time.Second)
 
@@ -99,8 +99,8 @@ func TestQueue_EnqueueGroup(t *testing.T) {
 
 	assert.Len(t, results, len(args))
 
-	slices.SortStableFunc(results, func(a, b *queue.TaskResult[int]) int {
-		return cmp.Compare(a.TaskID, b.TaskID)
+	slices.SortStableFunc(results, func(a, b *queue.TaskResult[int, int]) int {
+		return cmp.Compare(a.Task.GetID(), b.Task.GetID())
 	})
 
 	for idx, arg := range args {

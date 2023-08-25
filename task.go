@@ -1,30 +1,30 @@
 package queue
 
-type Task[Result, ProcessArg any] struct {
+type Task[ResultType, TaskArg any] struct {
 	id int64
 
-	arg ProcessArg
+	arg TaskArg
 
-	grp *TaskGroup[Result, ProcessArg]
+	grp *TaskGroup[ResultType, TaskArg]
 
 	doneChan   chan struct{}
-	resultChan chan *TaskResult[Result]
+	resultChan chan *TaskResult[ResultType, TaskArg]
 }
 
-func (t *Task[Result, ProcessArg]) GetID() int64 {
+func (t *Task[ResultType, TaskArg]) GetID() int64 {
 	return t.id
 }
 
-func (t *Task[Result, ProcessArg]) GetArg() ProcessArg {
+func (t *Task[ResultType, TaskArg]) GetArg() TaskArg {
 	return t.arg
 }
 
 // Done returns channel similar to context.Done()
-func (t *Task[Result, ProcessArg]) Done() chan struct{} {
+func (t *Task[ResultType, TaskArg]) Done() chan struct{} {
 	return t.doneChan
 }
 
 // Result returns the channel from which to read the result
-func (t *Task[Result, ProcessArg]) Result() chan *TaskResult[Result] {
+func (t *Task[ResultType, TaskArg]) Result() chan *TaskResult[ResultType, TaskArg] {
 	return t.resultChan
 }
