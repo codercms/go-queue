@@ -1,0 +1,5 @@
+module github.com/codercms/go-queue
+
+go 1.21.0
+
+require github.com/panjf2000/ants/v2 v2.8.1
